@@ -95,7 +95,7 @@ public abstract class DependencyModel {
     /**
      * Does the dependency bind several providers ?
      */
-    private boolean m_aggregate;
+    private volatile boolean m_aggregate;
     /**
      * Is the dependency optional ?
      */
@@ -735,6 +735,10 @@ public abstract class DependencyModel {
         } finally {
             releaseReadLockIfHeld();
         }
+    }
+
+    protected boolean isAggregateUnsafe() {
+        return m_aggregate;
     }
 
     /**

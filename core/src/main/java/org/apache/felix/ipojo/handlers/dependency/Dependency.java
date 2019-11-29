@@ -670,70 +670,34 @@ public class Dependency extends DependencyModel implements FieldInterceptor, Met
             throw new IllegalStateException("The dependency has not enabled the `proxy` mode.");
         }
 
-        Usage usage = (Usage) m_usage.get();
+        Usage usage = m_usage.get();
+        if (!usage.isUpToDate()) {
+            // We comes from the component who didn't touch the service.
+            // So we initialize the usage.
+            createServiceObject(usage);
+        }
         if (usage.m_stack == 0) { // uninitialized usage.
             if (usage.m_componentStack > 0) {
-                if (!usage.isUpToDate()) {
-                    // We comes from the component who didn't touch the service.
-                    // So we initialize the usage.
-                    createServiceObject(usage);
-                }
                 usage.inc(); // Start the caching, so set the stack level to 1
                 m_usage.set(usage); // Required by Dalvik.
-                if (isAggregate()) {
-                    Object obj = usage.getObject();
-                    if (obj instanceof Set) {
-                        List<Object> list = new ArrayList<Object>();
-                        list.addAll((Set) obj);
-                        return list;
-                    } else {
-                        // We already have a list
-                        return obj;
-                    }
-                } else {
-                    return usage.getObject();
-                }
-            } else {
-                // External access => Immediate get.
-                if (isAggregate()) {
-                    ServiceReference[] refs = getServiceReferences();
-                    if (refs == null) {
-                        return new ArrayList(0); // Create an empty list.
-                    } else {
-                        List<Object> objs = new ArrayList<Object>(refs.length);
-                        for (ServiceReference ref : refs) {
-                            objs.add(getService(ref));
-                        }
-                        return objs;
-                    }
-                } else { // Scalar dependency.
-                    ServiceReference ref = getServiceReference();
-                    if (ref != null) {
-                        return getService(ref);
-                    } else {
-                        // No service available.
-                        // TODO Decide what we have to do.
-                        throw new RuntimeException("Service " + getSpecification() + " unavailable");
-                    }
-                }
             }
-        } else {
-            // Use the copy.
-            // if the copy is a set, transform to a list
-            if (isAggregate()) {
-                Object obj = usage.getObject();
-                if (obj instanceof Set) {
-                    List<Object> list = new ArrayList<Object>();
-                    list.addAll((Set) obj);
-                    return list;
-                } else {
-                    // We already have a list
-                    return obj;
-                }
-            } else {
-                return usage.getObject();
-            }
+        }
+        return getObjectFromUsage(usage);
+    }
 
+    private Object getObjectFromUsage(Usage usage) {
+        if (isAggregateUnsafe()) {
+            Object obj = usage.getObject();
+            if (obj instanceof Set) {
+                return new ArrayList<Object>((Set) obj);
+            }
+            else {
+                // We already have a list
+                return obj;
+            }
+        }
+        else {
+            return usage.getObject();
         }
     }
 
