@@ -143,37 +143,14 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      * field value.
      */
     private Map m_fields = new ConcurrentHashMap();
+    private static final Object NO_FIELD = new Object();
 
     /**
      * The Map storing the Method objects by ids.
      * [id=>{@link Method}].
      */
     private Map m_methods =  new ConcurrentHashMap();
-    private static Member NO_METHOD = new Member() {
-        @Override
-        public Class<?> getDeclaringClass()
-        {
-            return null;
-        }
-
-        @Override
-        public String getName()
-        {
-            return null;
-        }
-
-        @Override
-        public int getModifiers()
-        {
-            return 0;
-        }
-
-        @Override
-        public boolean isSynthetic()
-        {
-            return false;
-        }
-    };
+    private static Object NO_METHOD = new Object();
 
     /**
      * The instance's bundle context.
@@ -392,11 +369,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      * @return the field value, <code>null</code> is returned if the value is managed and not already set.
      */
     public synchronized Object getFieldValue(String fieldName, Object pojo) {
-        Object setByContainer = null;
-
-        if (m_fields != null) {
-            setByContainer = m_fields.get(fieldName);
-        }
+        Object setByContainer = retrieveFieldValue(fieldName);
 
         if (setByContainer == null && pojo != null) { // In the case of no given pojo, return null.
             // If null either the value was not already set or has the null value.
@@ -419,6 +392,18 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
         } else {
             return setByContainer;
         }
+    }
+
+    private Object retrieveFieldValue(String fieldName) {
+        if (m_fields != null) {
+            Object value = m_fields.get(fieldName);
+            return value == NO_FIELD ? null : value;
+        }
+        return null;
+    }
+
+    private void storeFieldValue(String fieldName, Object value) {
+        m_fields.put(fieldName, value == null ? NO_FIELD : value);
     }
 
     /**
@@ -1206,7 +1191,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      * @return the value decided by the last asked handler (throws a warning if two fields decide two different values)
      */
     public Object onGet(Object pojo, String fieldName) {
-        Object initialValue = m_fields.get(fieldName);
+        Object initialValue = retrieveFieldValue(fieldName);
         Object result = initialValue;
         boolean hasChanged = false;
         // Get the list of registered handlers
@@ -1233,8 +1218,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
         }
         if (hasChanged) {
             // A change occurs => notify the change
-            //TODO consider just changing the reference, however multiple thread can be an issue
-            m_fields.put(fieldName, result);
+            storeFieldValue(fieldName, result);
             // Call onset outside of a synchronized block.
             for (int i = 0; list != null && i < list.length; i++) {
                 list[i].onSet(pojo, fieldName, result);
@@ -1329,10 +1313,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      */
     private Member getMethodById(final String methodId) {
         // Used a synchronized map.
-        Member member = (Member) m_methods.get(methodId);
-        if (member == NO_METHOD) {
-            member = null;
-        }
+        Member member = retrieveMethod(methodId);
         if (!m_methods.containsKey(methodId) && m_clazz != null) {
             // Is it a inner class method
             if (methodId.contains("___")) { // Mark to detect a inner class method.
@@ -1347,7 +1328,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                     // We can't find the member objects from anonymous methods, identified by their numeric name
                     // Just escaping in this case.
                     if (innerClassName.matches("-?\\d+")) {
-                        m_methods.put(methodId, NO_METHOD);
+                        storeMethod(methodId, null);
                         return null;
                     }
 
@@ -1357,7 +1338,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                             for (Method met : mets) {
                                 if (MethodMetadata.computeMethodId(met).equals(innerMethodName)) {
                                     // Store the new methodId
-                                    m_methods.put(methodId, met);
+                                    storeMethod(methodId, met);
                                     return met;
                                 }
                             }
@@ -1375,7 +1356,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
             for (int i = 0; i < mets.length; i++) {
                 if (MethodMetadata.computeMethodId(mets[i]).equals(methodId)) {
                     // Store the new methodId
-                    m_methods.put(methodId, mets[i]);
+                    storeMethod(methodId, mets[i]);
                     return mets[i];
                 }
             }
@@ -1387,7 +1368,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                     // Check if the constructor was not already computed. If not, compute the Id and check.
                     if (MethodMetadata.computeMethodId(constructors[i]).equals(methodId)) {
                         // Store the new methodId
-                        m_methods.put(methodId, constructors[i]);
+                        storeMethod(methodId, constructors[i]);
                         return constructors[i];
                     }
                 }
@@ -1399,6 +1380,16 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
         } else {
             return member;
         }
+    }
+
+    private void storeMethod(String methodId, Member method)
+    {
+        m_methods.put(methodId, method == null ? NO_METHOD : method);
+    }
+
+    private Member retrieveMethod(String methodId) {
+        Object member =  m_methods.get(methodId);
+        return member == NO_METHOD ? null : (Member) member;
     }
 
     /**
@@ -1414,7 +1405,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      */
     public void onSet(final Object pojo, final String fieldName, final Object objectValue) {
         // First, store the new value.
-        m_fields.put(fieldName, objectValue);
+        storeFieldValue(fieldName, objectValue);
         // The registrations cannot be modified, so we can directly access
         // the interceptor list.
         FieldInterceptor[] list = (FieldInterceptor[]) m_fieldRegistration
