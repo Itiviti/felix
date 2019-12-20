@@ -131,8 +131,8 @@
                 <configuration>
                     <target>1.6</target>
                     <source>1.6</source>
-                    <testTarget>1.6</testTarget>
-                    <testSource>1.6</testSource>
+                    <testTarget>8</testTarget>
+                    <testSource>8</testSource>
                 </configuration>
             </plugin>
             <plugin>
