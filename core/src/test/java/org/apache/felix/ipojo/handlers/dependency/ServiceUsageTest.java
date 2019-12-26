@@ -28,12 +28,16 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.felix.ipojo.InstanceManager;
 import org.apache.felix.ipojo.test.MockBundle;
+import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -103,7 +107,7 @@ public class ServiceUsageTest
     {
         Collection<Callable<Object>> runnables = new ArrayList<>();
         for (int i=0; i< 10;  i++)
-            runnables.add(() -> dependency.onGet(null, null, null));
+            runnables.add(() -> {dependency.onGet(null, null, null); Thread.sleep(1000); return null;});
         threads.invokeAll(runnables, 5, TimeUnit.SECONDS);
         assertThat(allUsages.stream().filter(Objects::nonNull).collect(Collectors.toList())).hasSize(10);
         threads.shutdownNow();
@@ -126,6 +130,50 @@ public class ServiceUsageTest
         catch (Exception e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    public void testConcurrency() throws InterruptedException
+    {
+        int nbThreads = 5000;
+        final CountDownLatch barrier = new CountDownLatch(1);
+        final CountDownLatch barrierAssertion = new CountDownLatch(nbThreads);
+        final CountDownLatch barrierExit = new CountDownLatch(1);
+        ConcurrentLinkedQueue<Exception> exceptions = new ConcurrentLinkedQueue<Exception>();
+        for (int i=0; i< nbThreads;  i++)
+            threads.submit(() -> {
+                try
+                {
+                    barrier.await();
+                    dependency.onGet(null, null, null);
+                }
+                catch (Exception e)
+                {
+                    exceptions.add(e);
+                }
+                barrierAssertion.countDown();
+                try
+                {
+                    barrierExit.await();
+                }
+                catch (InterruptedException e)
+                {
+                    e.printStackTrace();
+                }
+            });
+        try
+        {
+            Thread.sleep(500);
+            barrier.countDown();
+            barrierAssertion.await(10, TimeUnit.SECONDS);
+            assertThat(exceptions).isEmpty();
+            assertThat(allUsages.size()).isEqualTo(nbThreads);
+        }
+        finally
+        {
+            barrierExit.countDown();
+            threads.shutdown();
         }
     }
 }
