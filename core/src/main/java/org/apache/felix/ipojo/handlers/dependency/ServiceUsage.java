@@ -18,13 +18,9 @@
  */
 package org.apache.felix.ipojo.handlers.dependency;
 
-import java.security.Provider;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Object managing thread local copy of required services.
@@ -37,7 +33,7 @@ public class ServiceUsage extends ThreadLocal<ServiceUsage.Usage> {
      * Structure contained in the Thread Local.
      */
     public static class Usage {
-        
+
         /**
          * Stack Size.
          */
@@ -46,7 +42,7 @@ public class ServiceUsage extends ThreadLocal<ServiceUsage.Usage> {
          * Object to inject.
          */
         private Object m_object;
-        
+
         /**
          * Tracks the number of component method called
          * in the current thread.
@@ -54,7 +50,7 @@ public class ServiceUsage extends ThreadLocal<ServiceUsage.Usage> {
         int m_componentStack = 0;
 
         private volatile boolean m_uptodate = false;
-        
+
         /**
          * Increment the stack level from the first
          * service get.
@@ -62,7 +58,7 @@ public class ServiceUsage extends ThreadLocal<ServiceUsage.Usage> {
         public void inc() {
             m_stack++;
         }
-        
+
         /**
          * Increment the component stack level.
          */
@@ -109,7 +105,7 @@ public class ServiceUsage extends ThreadLocal<ServiceUsage.Usage> {
      * Keep track of provided {@link Usage}s to be able to invalid them (see {@link #markOutdated()})
      * Weak reference based to avoid preventing the Usages from being GC'd
      */
-    private Set<Usage> usages = Collections.newSetFromMap(new WeakHashMap<Usage, Boolean>());
+    private Set<Usage> usages = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<Usage, Boolean>()));
 
     /**
      * Marks all associated {@link Usage} as not being up to date, meaning
