@@ -110,11 +110,34 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
     private Map m_fieldRegistration;
 
     /**
-     * the map [method identifier, {@link MethodInterceptor} list] interested
+     * the map [method identifier, {@link MethodInterceptors}] interested
      * by the method.
      * Once configured, this map can't change.
      */
-    private Map m_methodRegistration;
+    private Map<String, MethodInterceptors> m_methodRegistration;
+
+    static class MethodInterceptors extends ArrayList<MethodInterceptor>
+    {
+        private final Member method;
+
+        MethodInterceptors(Member method)
+        {
+            this.method = method;
+        }
+
+        Member getMethod()
+        {
+            return method;
+        }
+
+        void addIfAbsent(MethodInterceptor methodInterceptor)
+        {
+            if (!contains(methodInterceptor))
+            {
+                add(methodInterceptor);
+            }
+        }
+    }
 
     /**
      * the map (sorted by parameter index) or {@link ConstructorInjector} interested by
@@ -152,37 +175,6 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      */
     private Map m_fields = new ConcurrentHashMap();
     private static final Object NO_FIELD = new Object();
-
-    /**
-     * The Map storing the Method objects by ids.
-     * [id=>{@link Method}].
-     */
-    private Map m_methods =  new ConcurrentHashMap();
-    private static final Member NO_METHOD = new Member() {
-        @Override
-        public Class<?> getDeclaringClass()
-        {
-            return null;
-        }
-
-        @Override
-        public String getName()
-        {
-            return null;
-        }
-
-        @Override
-        public int getModifiers()
-        {
-            return 0;
-        }
-
-        @Override
-        public boolean isSynthetic()
-        {
-            return false;
-        }
-    };
 
     /**
      * The instance's bundle context.
@@ -1133,25 +1125,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      * @param interceptor the field interceptor object
      */
     public void register(MethodMetadata method, MethodInterceptor interceptor) {
-        if (m_methodRegistration == null) {
-            m_methodRegistration = new HashMap();
-            m_methodRegistration.put(method.getMethodIdentifier(), new MethodInterceptor[]{interceptor});
-        } else {
-            MethodInterceptor[] list = (MethodInterceptor[]) m_methodRegistration.get(method.getMethodIdentifier());
-            if (list == null) {
-                m_methodRegistration.put(method.getMethodIdentifier(), new MethodInterceptor[]{interceptor});
-            } else {
-                for (int j = 0; j < list.length; j++) {
-                    if (list[j] == interceptor) {
-                        return;
-                    }
-                }
-                MethodInterceptor[] newList = new MethodInterceptor[list.length + 1];
-                System.arraycopy(list, 0, newList, 0, list.length);
-                newList[list.length] = interceptor;
-                m_methodRegistration.put(method.getMethodIdentifier(), newList);
-            }
-        }
+        register(method.getMethodIdentifier(), interceptor);
     }
 
     /**
@@ -1164,27 +1138,22 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      * @param interceptor the field interceptor object
      */
     public void register(MethodMetadata method, String innerClass, MethodInterceptor interceptor) {
-        if (m_methodRegistration == null) {
-            m_methodRegistration = new HashMap();
-            m_methodRegistration.put(innerClass + "___" + method.getMethodIdentifier(),
-                    new MethodInterceptor[]{interceptor});
-        } else {
-            MethodInterceptor[] list = (MethodInterceptor[]) m_methodRegistration.get(method.getMethodIdentifier());
-            if (list == null) {
-                m_methodRegistration.put(innerClass + "___" + method.getMethodIdentifier(),
-                        new MethodInterceptor[]{interceptor});
-            } else {
-                for (int j = 0; j < list.length; j++) {
-                    if (list[j] == interceptor) {
-                        return;
-                    }
-                }
-                MethodInterceptor[] newList = new MethodInterceptor[list.length + 1];
-                System.arraycopy(list, 0, newList, 0, list.length);
-                newList[list.length] = interceptor;
-                m_methodRegistration.put(innerClass + "___" + method.getMethodIdentifier(), newList);
-            }
+        register(innerClass + "___" + method.getMethodIdentifier(), interceptor);
+    }
+
+    private void register(String methodId, MethodInterceptor interceptor) {
+        if (m_methodRegistration == null)
+        {
+            m_methodRegistration = new HashMap<String, MethodInterceptors>();
         }
+        MethodInterceptors interceptors = m_methodRegistration.get(methodId);
+        if (interceptors == null)
+        {
+            Member method = getMethodById(methodId);
+            interceptors = new MethodInterceptors(method);
+            m_methodRegistration.put(methodId, interceptors);
+        }
+        interceptors.addIfAbsent(interceptor);
     }
 
     /**
@@ -1272,14 +1241,10 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
         if (m_methodRegistration == null) { // Immutable field.
             return;
         }
-
-        MethodInterceptor[] list = (MethodInterceptor[]) m_methodRegistration.get(methodId);
-        Member method = getMethodById(methodId);
-        // We can't find the member object of anonymous methods.
-
-        // In case of a constructor, the method is null, and the list is null too.
-        for (int i = 0; list != null && i < list.length; i++) {
-            list[i].onEntry(pojo, method, args); // Outside a synchronized block.
+        MethodInterceptors interceptors = m_methodRegistration.get(methodId);
+        for (int i = 0; interceptors != null && i < interceptors.size(); i++)
+        {
+            interceptors.get(i).onEntry(pojo, interceptors.getMethod(), args);
         }
     }
 
@@ -1300,13 +1265,14 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
         if (m_methodRegistration == null) {
             return;
         }
-        MethodInterceptor[] list = (MethodInterceptor[]) m_methodRegistration.get(methodId);
-        Member method = getMethodById(methodId);
-        for (int i = 0; list != null && i < list.length; i++) {
-            list[i].onExit(pojo, method, result);
+        MethodInterceptors interceptors = m_methodRegistration.get(methodId);
+        for (int i = 0; interceptors != null && i < interceptors.size(); i++)
+        {
+            interceptors.get(i).onExit(pojo, interceptors.getMethod(), result);
         }
-        for (int i = 0; list != null && i < list.length; i++) {
-            list[i].onFinally(pojo, method);
+        for (int i = 0; interceptors != null && i < interceptors.size(); i++)
+        {
+            interceptors.get(i).onFinally(pojo, interceptors.getMethod());
         }
     }
 
@@ -1325,28 +1291,26 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
         if (m_methodRegistration == null) {
             return;
         }
-        MethodInterceptor[] list = (MethodInterceptor[]) m_methodRegistration.get(methodId);
-        Member method = getMethodById(methodId);
-        for (int i = 0; list != null && i < list.length; i++) {
-            list[i].onError(pojo, method, error);
+        MethodInterceptors interceptors = m_methodRegistration.get(methodId);
+        for (int i = 0; interceptors != null && i < interceptors.size(); i++)
+        {
+            interceptors.get(i).onError(pojo, interceptors.getMethod(), error);
         }
-        for (int i = 0; list != null && i < list.length; i++) {
-            list[i].onFinally(pojo, method);
+        for (int i = 0; interceptors != null && i < interceptors.size(); i++)
+        {
+            interceptors.get(i).onFinally(pojo, interceptors.getMethod());
         }
     }
 
     /**
      * Computes the {@link Method} object from the given id.
-     * Once computes, a map is used as a cache to avoid to recompute for
-     * the same id.
      *
      * @param methodId the method id
      * @return the method object or <code>null</code> if the method cannot be found.
      */
     private Member getMethodById(final String methodId) {
-        // Used a synchronized map.
-        Member member =  (Member) m_methods.get(methodId);
-        if (member == null && m_clazz != null) {
+        getClazz();
+        if (m_clazz != null) {
             // Is it a inner class method
             if (methodId.contains("___")) { // Mark to detect a inner class method.
                 String[] split = methodId.split("___");
@@ -1360,7 +1324,6 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                     // We can't find the member objects from anonymous methods, identified by their numeric name
                     // Just escaping in this case.
                     if (innerClassName.matches("-?\\d+")) {
-                        m_methods.put(methodId, NO_METHOD);
                         return null;
                     }
 
@@ -1369,8 +1332,6 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                             Method[] mets = c.getDeclaredMethods();
                             for (Method met : mets) {
                                 if (MethodMetadata.computeMethodId(met).equals(innerMethodName)) {
-                                    // Store the new methodId
-                                    m_methods.put(methodId, met);
                                     return met;
                                 }
                             }
@@ -1387,8 +1348,6 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
             Method[] mets = m_clazz.getDeclaredMethods();
             for (int i = 0; i < mets.length; i++) {
                 if (MethodMetadata.computeMethodId(mets[i]).equals(methodId)) {
-                    // Store the new methodId
-                    m_methods.put(methodId, mets[i]);
                     return mets[i];
                 }
             }
@@ -1399,8 +1358,6 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                 for (int i = 0; i < constructors.length; i++) {
                     // Check if the constructor was not already computed. If not, compute the Id and check.
                     if (MethodMetadata.computeMethodId(constructors[i]).equals(methodId)) {
-                        // Store the new methodId
-                        m_methods.put(methodId, constructors[i]);
                         return constructors[i];
                     }
                 }
@@ -1409,9 +1366,8 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
             // Should not happen
             m_logger.log(Logger.INFO, "A methodID cannot be associated with a method from the POJO class: " + methodId);
             return null;
-        } else {
-            return member == NO_METHOD ? null : member;
         }
+        return null;
     }
 
     /**
