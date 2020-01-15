@@ -18,6 +18,18 @@
  */
 package org.apache.felix.ipojo;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Dictionary;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.felix.ipojo.architecture.InstanceDescription;
 import org.apache.felix.ipojo.extender.internal.linker.InstanceBundleContextAware;
 import org.apache.felix.ipojo.metadata.Element;
@@ -26,10 +38,6 @@ import org.apache.felix.ipojo.parser.MethodMetadata;
 import org.apache.felix.ipojo.util.Logger;
 import org.apache.felix.ipojo.util.Property;
 import org.osgi.framework.BundleContext;
-
-import java.lang.reflect.*;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class defines the container of primitive instances. It manages content initialization
@@ -150,7 +158,31 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      * [id=>{@link Method}].
      */
     private Map m_methods =  new ConcurrentHashMap();
-    private static Object NO_METHOD = new Object();
+    private static final Member NO_METHOD = new Member() {
+        @Override
+        public Class<?> getDeclaringClass()
+        {
+            return null;
+        }
+
+        @Override
+        public String getName()
+        {
+            return null;
+        }
+
+        @Override
+        public int getModifiers()
+        {
+            return 0;
+        }
+
+        @Override
+        public boolean isSynthetic()
+        {
+            return false;
+        }
+    };
 
     /**
      * The instance's bundle context.
@@ -1313,8 +1345,8 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
      */
     private Member getMethodById(final String methodId) {
         // Used a synchronized map.
-        Member member = retrieveMethod(methodId);
-        if (!m_methods.containsKey(methodId) && m_clazz != null) {
+        Member member =  (Member) m_methods.get(methodId);
+        if (member == null && m_clazz != null) {
             // Is it a inner class method
             if (methodId.contains("___")) { // Mark to detect a inner class method.
                 String[] split = methodId.split("___");
@@ -1328,7 +1360,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                     // We can't find the member objects from anonymous methods, identified by their numeric name
                     // Just escaping in this case.
                     if (innerClassName.matches("-?\\d+")) {
-                        storeMethod(methodId, null);
+                        m_methods.put(methodId, NO_METHOD);
                         return null;
                     }
 
@@ -1338,7 +1370,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                             for (Method met : mets) {
                                 if (MethodMetadata.computeMethodId(met).equals(innerMethodName)) {
                                     // Store the new methodId
-                                    storeMethod(methodId, met);
+                                    m_methods.put(methodId, met);
                                     return met;
                                 }
                             }
@@ -1356,7 +1388,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
             for (int i = 0; i < mets.length; i++) {
                 if (MethodMetadata.computeMethodId(mets[i]).equals(methodId)) {
                     // Store the new methodId
-                    storeMethod(methodId, mets[i]);
+                    m_methods.put(methodId, mets[i]);
                     return mets[i];
                 }
             }
@@ -1368,7 +1400,7 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
                     // Check if the constructor was not already computed. If not, compute the Id and check.
                     if (MethodMetadata.computeMethodId(constructors[i]).equals(methodId)) {
                         // Store the new methodId
-                        storeMethod(methodId, constructors[i]);
+                        m_methods.put(methodId, constructors[i]);
                         return constructors[i];
                     }
                 }
@@ -1378,18 +1410,8 @@ public class InstanceManager implements ComponentInstance, InstanceStateListener
             m_logger.log(Logger.INFO, "A methodID cannot be associated with a method from the POJO class: " + methodId);
             return null;
         } else {
-            return member;
+            return member == NO_METHOD ? null : member;
         }
-    }
-
-    private void storeMethod(String methodId, Member method)
-    {
-        m_methods.put(methodId, method == null ? NO_METHOD : method);
-    }
-
-    private Member retrieveMethod(String methodId) {
-        Object member =  m_methods.get(methodId);
-        return member == NO_METHOD ? null : (Member) member;
     }
 
     /**
