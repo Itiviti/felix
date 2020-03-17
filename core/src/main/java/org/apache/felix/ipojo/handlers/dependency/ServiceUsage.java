@@ -112,9 +112,12 @@ public class ServiceUsage extends ThreadLocal<ServiceUsage.Usage> {
      * they should be re-computed
      */
     public void markOutdated() {
-        for (Usage usage : usages)
+        synchronized (usages)
         {
-            usage.m_uptodate = false;
+            for (Usage usage : usages)
+            {
+                usage.m_uptodate = false;
+            }
         }
     }
     

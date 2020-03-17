@@ -19,6 +19,16 @@
 
 package org.apache.felix.ipojo.extender.internal.queue;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Dictionary;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.apache.felix.ipojo.extender.internal.LifecycleQueueService;
 import org.apache.felix.ipojo.extender.queue.Callback;
 import org.apache.felix.ipojo.extender.queue.Job;
@@ -29,9 +39,6 @@ import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.cm.ConfigurationException;
 import org.osgi.service.cm.ManagedService;
-
-import java.util.*;
-import java.util.concurrent.*;
 
 /**
  * An asynchronous implementation of the queue service. This implementation relies on an executor service.
@@ -212,8 +219,16 @@ public class ExecutorQueueService extends AbstractQueueService implements Lifecy
 
             if (newSize != m_executorService.getMaximumPoolSize()) {
                 // Apply configuration change
-                m_executorService.setCorePoolSize(newSize);
-                m_executorService.setMaximumPoolSize(newSize);
+                if (newSize > m_executorService.getMaximumPoolSize())
+                {
+                    m_executorService.setMaximumPoolSize(newSize);
+                    m_executorService.setCorePoolSize(newSize);
+                }
+                else
+                {
+                    m_executorService.setCorePoolSize(newSize);
+                    m_executorService.setMaximumPoolSize(newSize);
+                }
                 m_properties.put(THREADPOOL_SIZE_PROPERTY, newSize);
                 changed = true;
             }

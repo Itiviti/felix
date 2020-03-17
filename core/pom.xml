@@ -27,7 +27,7 @@
     <packaging>bundle</packaging>
     <name>Apache Felix iPOJO</name>
     <artifactId>org.apache.felix.ipojo</artifactId>
-    <version>1.12.1.3-ullink-SNAPSHOT</version>
+    <version>1.12.1.4-ullink-SNAPSHOT</version>
 
     <properties>
         <!--
