@@ -73,7 +73,7 @@ public class ConstructorCodeAdapter extends GeneratorAdapter implements Opcodes 
      * @param name   the name
      */
     public ConstructorCodeAdapter(final MethodVisitor mv, final String owner, Set<String> fields, int access, String name, String desc, String superClass) {
-        super(Opcodes.ASM5, mv, access, name, desc);
+        super(Opcodes.ASM7, mv, access, name, desc);
         m_owner = owner;
         m_superDetected = false;
         m_fields = fields;

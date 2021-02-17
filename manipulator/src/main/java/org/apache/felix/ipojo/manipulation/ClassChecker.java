@@ -73,7 +73,7 @@ public class ClassChecker extends ClassVisitor implements Opcodes {
     private int m_classVersion;
 
     public ClassChecker() {
-        super(Opcodes.ASM5);
+        super(Opcodes.ASM7);
     }
 
     /**
@@ -345,7 +345,7 @@ public class ClassChecker extends ClassVisitor implements Opcodes {
          * @param md the method descriptor of the visited method.
          */
         private MethodInfoCollector(MethodDescriptor md) {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
             m_method = md;
         }
 
@@ -456,7 +456,7 @@ public class ClassChecker extends ClassVisitor implements Opcodes {
          * @param visible the visibility of the annotation at runtime
          */
         public AnnotationDescriptor(String name, boolean visible) {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
             m_name = name;
             m_visible = visible;
         }
@@ -469,7 +469,7 @@ public class ClassChecker extends ClassVisitor implements Opcodes {
          * @param desc the descriptor of the annotation
          */
         public AnnotationDescriptor(String name, String desc) {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
             m_name = name;
             m_visible = true;
             m_desc = desc;
@@ -641,7 +641,7 @@ public class ClassChecker extends ClassVisitor implements Opcodes {
          * @param name the name of the attribute.
          */
         public ArrayAttribute(String name) {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
             m_name = name;
         }
 
@@ -833,7 +833,7 @@ public class ClassChecker extends ClassVisitor implements Opcodes {
     private class InnerClassAssignedToStaticFieldDetector extends MethodVisitor {
 
         public InnerClassAssignedToStaticFieldDetector() {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
         }
 
         @Override

@@ -141,7 +141,7 @@ public class ClassManipulator extends ClassVisitor implements Opcodes {
      * @param manipulator : the manipulator having analyzed the class.
      */
     public ClassManipulator(ClassVisitor visitor, Manipulator manipulator) {
-        super(Opcodes.ASM5, visitor);
+        super(Opcodes.ASM7, visitor);
         m_manipulator = manipulator;
         m_fields = manipulator.getFields().keySet();
         m_visitedMethods = manipulator.getMethods();
@@ -273,6 +273,7 @@ public class ClassManipulator extends ClassVisitor implements Opcodes {
      * @return FieldVisitor : null
      */
     public FieldVisitor visitField(final int access, final String name, final String desc, final String signature, final Object value) {
+        int newAccess = access;
         if ((access & ACC_STATIC) == 0) {
             FieldVisitor flag = cv.visitField(Opcodes.ACC_PRIVATE, FIELD_FLAG_PREFIX + name, "Z", null, null);
             flag.visitEnd();
@@ -297,8 +298,9 @@ public class ClassManipulator extends ClassVisitor implements Opcodes {
                 createSimpleSetter(name, sDesc, type);
             }
 
+            newAccess &= (~Opcodes.ACC_FINAL);
         }
-        return cv.visitField(access, name, desc, signature, value);
+        return cv.visitField(newAccess, name, desc, signature, value);
     }
 
     /**

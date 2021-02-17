@@ -28,12 +28,12 @@
   </parent>
 
   <artifactId>ipojo-manipulator-bom</artifactId>
-    <version>1.12.1</version>
+    <version>1.12.1-ullink1-SNAPSHOT</version>
   <name>Apache Felix iPOJO Manipulator BOM</name>
   <packaging>pom</packaging>
 
   <properties>
-    <asm.version>5.0.2</asm.version>
+    <asm.version>7.3.1</asm.version>
     <metadata.version>1.6.0</metadata.version>
   </properties>
 
@@ -50,15 +50,24 @@
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>org.ow2.asm</groupId>
-        <artifactId>asm-all</artifactId>
-        <version>${asm.version}</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm-tree</artifactId>
-          </exclusion>
-        </exclusions>
+          <groupId>org.ow2.asm</groupId>
+          <artifactId>asm</artifactId>
+          <version>${asm.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>org.ow2.asm</groupId>
+          <artifactId>asm-tree</artifactId>
+          <version>${asm.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>org.ow2.asm</groupId>
+          <artifactId>asm-util</artifactId>
+          <version>${asm.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>org.ow2.asm</groupId>
+          <artifactId>asm-commons</artifactId>
+          <version>${asm.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.felix</groupId>
